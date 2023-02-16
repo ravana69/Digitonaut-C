@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Mirrored from digitonaut.com/art/captain_harlocks_maiden_voyage/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:47:50 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Captain Harlocks Maiden Voyage</title>
+
+<script src="shader-web-background.min.js"></script>
+
+<script type="x-shader/x-fragment" id="image">
+precision highp float;
+uniform vec2  iResolution;
+uniform float iTime;
+uniform sampler2D iChannel0;
+
+ // -------------------------------------------------------------------------------------------------- Paste your Shadertoy code here:
+
+// Captain Harlock's maiden voyage - Result of an improvised live coding session on Twitch
+// LIVE SHADER CODING, SHADER SHOWDOWN STYLE, EVERY TUESDAYS 21:00 Uk time: 
+// https://www.twitch.tv/evvvvil_
+
+// "We will not pray for anything. Nor will we seek help from anyone." - Captain Harlock
+
+vec2 z,v,e=vec2 (.00035,-.00035);float t,tt,b,bb,g,gg,tn;vec3 np,bp,pp,op,po,no,ld,al,sp;
+mat2 r2(float r){return mat2(cos(r),sin(r),-sin(r),cos(r));}
+float smin(float a,float b, float k){ float h=max(0.,k-abs(a-b));return min(a,b)-h*h*.25/k;}
+float smax(float a,float b, float k){ float h=max(0.,k-abs(-a-b));return max(-a,b)+h*h*.25/k;}
+vec2 smin( vec2 a, vec2 b,float k ){ float h=clamp(.5+.5*(b.x-a.x)/k,.0,1.);return mix(b,a,h)-k*h*(1.0-h);}
+vec4 texNoise(vec2 uv,sampler2D tex ){ float f = 0.; f+=texture2D(tex, uv*.125).r*.5; f+=texture2D(tex,uv*.25).r*.25; //Funciton simulating the perlin noise texture we have in Bonzomatic shader editor, written by yx
+                       f+=texture2D(tex,uv*.5).r*.125; f+=texture2D(tex,uv*1.).r*.125; f=pow(f,1.2);return vec4(f*.45+.05);}
+vec2 mp( vec3 p ,float ga){  
+  op=p;
+  p.z-=b;p.xy*=r2(sin(op.z*.3)*.5);
+  float disp=cos(p.z*.2);             //DISPLACEMENT
+  float gr=clamp(sin(p.z*2.),-.5,.5)*.1; //GREEBLE
+  sp=vec3(abs(atan(p.x,p.y))*4.,p.z,length(p.xy)-2.2+disp);    //CYLINDRICAL POSITION  
+  sp.xy*=r2(.2+cos(p.z*.1)+gr*.5);
+  sp.xy=abs(abs(abs(sp.xy)-8.)-4.)-2.;  
+  vec2 h,t=vec2(length(p.xy)-2.+disp+clamp(sin(sp.x*5.-.5),-.5,.5)*.1,0); //MAIN CYLINDER   
+  t.x=abs(t.x)-.1;  
+  t.x=max(t.x,.7*(abs(sin(sp.x*5.-.5))-.8));
+  pp=p; pp.z=abs(abs(abs(pp.z)-4.)-1.)-.5;
+  float cut=abs(p.z)-10.;
+  float topTube=max(abs(length(pp.xz)-.2)-.1,abs(p.y)-4.+disp); //TOP TUBES
+  pp.y=min(pp.y,mod(pp.y-tt*2.+disp-sin(p.z*.2),10.)-5.);
+  float bro=min(4.,abs(max(0.,abs(p.y*.5)-2.3+disp)));
+  pp.xz-=sin(p.y*2.5+p.z*.5)*bro*.15;pp.y*=.3*(.2+bro);
+  float glo=(length(pp)+cos(bro+1.6)*.5)*.6;    
+  g+=0.1/(0.1+glo*glo*40.)*ga;
+  t.x=min(t.x,glo);
+  h=vec2(topTube,1);    
+  pp=p; pp.xy=abs(pp.xy)-(2.3-disp)*.8;   //TUBESSSSSSSSSSSS on SIDE
+  pp.yz*=r2(gr*.5); pp.xz*=r2(gr*.5);
+  float tubesSide=length(pp.xy)-.3; 
+  glo=max(tubesSide+0.15,cut);
+  tubesSide=max(tubesSide,-(abs(pp.y)-.05));
+  t.x=smin(t.x,tubesSide,.4);  
+  gg+=0.1/(0.1+glo*glo*40.)*ga;
+  t.x=min(t.x,glo);
+  pp.xy=abs(pp.xy)-.3+min(.0,cos(p.z*.5)*.2);
+  float smallTubesSide=length(pp.xy)-.1;
+  h.x=smin(h.x,smallTubesSide,.2);    
+  float connect=length(sp.xz)-.4; //CYLINDRICAL TUBES AROUND
+  bp=sp; bp.z-=.3+cos(sp.y)*.5;
+  float nip=max(length(bp.xz)-.02,cut);
+  t.x=smin(t.x,nip,0.1);
+  gg+=0.1/(0.1+nip*nip*50.)*ga;
+  sp.x=abs(sp.x)-.5;
+  connect=smin(connect,length(sp.xz)-.1,.1);
+  h.x=smin(h.x,connect,.2);   
+  t.x=max(t.x,cut);
+  h.x=max(h.x,cut);                                
+  pp=p;pp.z=abs(pp.z)-11.;//SKULL
+  pp.y*=0.8;
+  float skDisp=sin(pp.y*2.+3.)*.3;  
+  float blackS=length(pp)-2.8+skDisp; //BLACK SPHERE AROUND SKULL
+  blackS=smax(length(pp-vec3(0,0,1.))-2.7+skDisp,blackS,.5);
+  h.x=smin(h.x,blackS,.5);  
+  tn=texNoise(pp.xy*.05+1.,iChannel0).r; //TEX NOISE
+  pp=p;pp.y*=0.8;pp.z-=11.; 
+  float whiteS=length(pp+vec3(0,0,1.))-2.7+skDisp+tn*1.5;  
+  vec3 ep=pp-vec3(0,0.,.8);ep.x=abs(ep.x)-.8;
+  float smile=cos(p.z)*.5;            
+  whiteS=smax(max(length(ep)-.4-tn,p.y-.7+smile*2.5),whiteS,.5);             //EYES                
+  whiteS=smax((abs(p.y+1.9-smile)-.01),whiteS,.2);//SMILE
+  whiteS=smax(max(abs(abs(abs(abs(p.x)-.8)-.4)-.2)-.1+abs(p.y+1.7)*0.12,abs(p.y+1.9-smile)-1.),whiteS,.1);
+  t.x=smin(t.x,whiteS,.5);  
+  t=smin(t,h,.2);  t.x*=0.8;  
+  h=vec2(length(p.xy)-1.2+disp,2); //INSIDE CORE GLOW
+  h.x=max(h.x,cut);
+  pp=p+vec3(0,.5,10);pp.y=abs(pp.y)-1.;
+  h.x=smin(h.x,(length(pp.xy)-1.+sin(p.z*4.+p.y*2.+tt*5.)*.1+abs(pp.z)*.3)*.5,.5);    
+  vec3 ssp=p;ssp.xy*=r2(sin((p.z)*.2)-tt);  
+  g+=0.1/(0.1*h.x*h.x*(20.-sin(ssp.x-tt)*18.))*ga;
+  pp=p;pp.z=op.z;pp.z=mod(pp.z+tt,4.)-2.;pp.x=abs(pp.x)-1.;
+  float bit=.7*length(pp.xz);
+  glo=max(bit,p.y+6.2+sin(op.z));
+  float part=max(length(cos(op*.5)+sin(op.z*.2+op.x*.2)*.5),-op.y+10.); //PARTICLES
+  glo=min(glo,part);
+  g+=0.1/(0.1*glo*glo*1000.)*ga;  
+  h.x=smin(h.x,glo,1.);  
+  if(abs(p.x)-35.<0.){
+  float ter=(p.y+5.+.4*sin((op.z+tt)*1.5)+tn+cos(p.x*.2)*4.)*.45;
+  ter=smin(ter,max(bit-.15,p.y+7.),.5);
+  h.x=min(h.x,ter); //TERRAIN 
+  }  
+  t=t.x<h.x?t:h;  
+  return t;
+}
+vec2 tr( vec3 ro,vec3 rd )
+{
+  vec2 h,t=vec2(.1);
+  for(int i=0;i<128;i++){
+    h=mp(ro+rd*t.x,1.);
+    if(h.x<.0001||t.x>60.) break;
+    t.x+=h.x;t.y=h.y;
+  }
+  if(t.x>60.) t.y=-1.;
+	return t;
+}
+#define a(d) clamp(mp(po+no*d,0.).x/d,0.,1.)
+#define s(d) smoothstep(0.,1.,mp(po+ld*d,0.).x/d)
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+  vec2 uv=(fragCoord.xy/iResolution.xy-0.5)/vec2(iResolution.y/iResolution.x,1); //get uv
+  tt=mod(iTime,40.);
+  b=-20.+mod(tt*2.,40.);
+  vec3 ct=vec3(0,0,b);
+  vec3 ro=mix(vec3(4,-2.+sin(tt*.4)*2.,5),vec3(-7,sin(tt*.4)*2.,5),ceil(sin(tt*3.14159/20.))),
+  cw=normalize(ct-ro),cu=normalize(cross(cw,vec3(0,1,0))),cv=normalize(cross(cu,cw)),
+  rd=mat3(cu,cv,cw)*normalize(vec3(uv,.5)),co,fo;  
+  co=fo=vec3(.1,.12,.13)-length(uv)*.15-rd.y*.2+texNoise(rd.xz*.5,iChannel0).r*.2;
+  ld=normalize(vec3(-.5,.5,.5));
+  z=tr(ro,rd);t=z.x;
+  if(z.y>-1.){
+    po=ro+rd*t;
+    no=normalize(e.xyy*mp(po+e.xyy,0.).x+e.yyx*mp(po+e.yyx,0.).x+e.yxy*mp(po+e.yxy,0.).x+e.xxx*mp(po+e.xxx,0.).x);
+    al=mix(vec3(.75),vec3(.0),z.y);    
+    if(z.y>1.) al=vec3(.8,.9,1)-exp(tn)*.7;
+    float dif=max(0.,dot(no,ld)),    
+    fr=pow(1.+dot(no,rd),4.),
+    sp=pow(max(dot(reflect(-ld,no),-rd),0.),40.);
+    co=mix(sp+al*(a(.2)+.2)*(dif+s(1.))*vec3(.7,.8,1.),fo,min(fr,.5));
+    co=mix(fo,co,exp(-.00003*t*t*t));
+  }
+co=mix(co,co.zxy,length(uv)*.5);
+	fragColor = vec4(pow(co+g*.2*vec3(.1,.2,.7)+gg*.2*vec3(.7,.2,.1),vec3(.55)),1);
+}
+ // -------------------------------------------------------------------------------------------------- End of Shadertoy code
+
+void main() {
+	mainImage(gl_FragColor, gl_FragCoord.xy);
+}
+</script>
+<script>
+shaderWebBackground.shade({
+	onInit: (ctx) => {
+		const image = new Image();
+		image.crossOrigin = "anonymous";
+		image.src = "ichannel0.jpg";
+		image.onload = () => {
+			const gl = ctx.gl;
+			const texture = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+	  
+			/* non-repeat texture */
+			/*
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+			*/
+			  
+			/* repeat texture */
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);  
+			
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+			ctx.iChannel0 = texture;
+		}
+	},
+	onResize: (width, height, ctx) => {
+		ctx.minDimension = Math.min(width, height);
+	},
+	shaders: {
+		image: {
+			uniforms: {
+				iResolution: (gl, loc, ctx) => gl.uniform2f(loc, ctx.width, ctx.height),
+				iTime: (gl, loc, ctx) => gl.uniform1f(loc, performance.now() / 1000),
+				iChannel0: (gl, loc, ctx) => ctx.texture(loc, ctx.iChannel0)
+			}
+		}
+	}
+});
+</script>
+</head>
+<body>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/captain_harlocks_maiden_voyage/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:48:39 GMT -->
+</html>

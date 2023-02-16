@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/coalesce_20/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:54:17 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Coalesce 20</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<script id="vertexShaderParticle" type="x-shader/x-vertex">
+    uniform vec2 u_resolution;
+    uniform vec2 u_mouse;
+    uniform float u_time;
+    uniform sampler2D u_noise;
+    attribute vec2 reference;
+    uniform sampler2D texturePosition;
+    uniform bool u_clicked;
+    varying float v_op;
+    varying vec2 v_ref;
+  
+  
+  float random(vec2 st) {
+    return fract(sin(dot(st,
+                         vec2(12.9898,78.233)))*
+        43758.5453123);
+  }
+  
+  vec2 hash2(vec2 p)
+  {
+    vec2 o = texture2D( u_noise, (p+0.5)/256.0).xy;
+    return o;
+  }
+    void main() {
+      vec3 position = texture2D(texturePosition, reference).xyz;
+      position *= 3.;
+      // position -= 10.;
+
+      vec3 transformed = vec3( position );
+      
+      vec4 mvpos = modelViewMatrix * vec4( transformed, 1.0 );
+      
+      float isq = (1. / (length(mvpos.xyz)) * 6.);
+
+      gl_PointSize = 100. * isq;
+      v_op = smoothstep(0., 1., length(mvpos.xyz));
+      // gl_PointSize = 2.;
+      gl_Position = projectionMatrix * mvpos;
+      v_ref = sin(reference.xy * 100.) * .3;
+    }
+</script>
+<script id="fragmentShaderParticle" type="x-shader/x-fragment">
+  uniform vec2 u_resolution;
+  uniform vec2 u_mouse;
+  uniform float u_time;
+  uniform sampler2D u_noise;
+    varying vec2 v_ref;
+  uniform bool u_clicked;
+    varying float v_op;
+
+  vec2 hash2(vec2 p)
+  {
+    vec2 o = texture2D( u_noise, (p+0.5)/256.0, -100.0 ).xy;
+    return o;
+  }
+
+  void main() {
+    vec2 uv = gl_PointCoord.xy - .5;
+    
+    vec3 particlecolour = vec3(0.);
+    vec3 outercolour = vec3(1.);
+    
+    float l = length(uv);
+    vec3 colour = mix(outercolour, particlecolour, 1.-l) - .5;
+
+    gl_FragColor = vec4(colour, 1.-l*1.2-.5);
+  }
+</script>
+<script id="fragmentShaderVelocity" type="x-shader/x-fragment">
+  uniform vec2 u_resolution;
+  uniform vec2 u_mouse;
+  uniform float u_time;
+  uniform float u_mousex;
+    varying float v_op;
+  
+  // otaviogood's noise from https://www.shadertoy.com/view/ld2SzK
+  const float nudge = 0.739513;	// size of perpendicular vector
+  float normalizer = 1.0 / sqrt(1.0 + nudge*nudge);	// pythagorean theorem on that perpendicular to maintain scale
+  float SpiralNoiseC(vec3 p)
+  {
+      float n = 0.0;	// noise amount
+      float iter = 1.0;
+      for (int i = 0; i < 8; i++)
+      {
+          // add sin and cos scaled inverse with the frequency
+          n += -abs(sin(p.y*iter) + cos(p.x*iter)) / iter;	// abs for a ridged look
+          // rotate by adding perpendicular and scaling down
+          p.xy += vec2(p.y, -p.x) * nudge;
+          p.xy *= normalizer;
+          // rotate on other axis
+          p.xz += vec2(p.z, -p.x) * nudge;
+          p.xz *= normalizer;
+          // increase the frequency
+          iter *= 1.733733;
+      }
+      return n;
+  }
+  mat4 rotationMatrix(vec3 axis, float angle)
+  {
+      axis = normalize(axis);
+      float s = sin(angle);
+      float c = cos(angle);
+      float oc = 1.0 - c;
+
+      return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0,
+                  oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0,
+                  oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0,
+                  0.0,                                0.0,                                0.0,                                1.0);
+  }
+  
+  vec3 hash33(vec3 p) {
+    return fract(vec3(
+      sin(p.x) * 43543.454354,
+      sin(p.y) * 7531.154354,
+      sin(p.z) * 10053.75315
+    ));
+  }
+
+  void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec3 position = texture2D(v_samplerPosition, uv).xyz;
+    vec3 velocity = texture2D(v_samplerVelocity, uv).xyz;
+    vec3 acceleration = vec3(0.);
+    
+    float l = length(position);
+    position = ( vec4(position, 1.) * rotationMatrix(vec3(sin(u_time * 25.), cos(u_time * 10.), sin(u_time) * cos(u_time * 5.)), .5 + 10. / l) ).xyz;
+    
+    vec3 spherical = vec3(1./l, atan(position.y, position.x), acos(position.z / l));
+    float n = SpiralNoiseC(position*.3);
+    n *= 1.+n;
+    
+    float t = u_time * 5.;
+    
+    float oset = sin(cos(t)*5.) * 20. + 10.;
+    
+    float a = n + smoothstep(10.+oset, 11.+oset, l)*-5.;
+    
+    acceleration.x = spherical.x * sin(spherical.z) * cos(spherical.y) * a;
+    acceleration.y = spherical.x * sin(spherical.z) * sin(spherical.y) * a;
+    acceleration.z = spherical.x * cos(spherical.z) * a;
+    
+    // acceleration *= max(sin(u_time*10.) * .6 + .4, 0.);
+    // acceleration *= clamp(abs(u_mousex *.01 + 1.), 0., 1.);
+    
+    vec3 vel = velocity * .99 + acceleration ;
+    
+    float st = (sin(t)*.5)*.2;
+    
+    vel += (hash33(position) - .5) * st;
+    
+    if(length(vel) > 10.) {
+      vel = normalize(vel) * 10.;
+    }
+    
+    gl_FragColor = vec4(vel, 1.0);
+    // gl_FragColor = vec4(-.1);
+  }
+</script>
+<script id="fragmentShaderPosition" type="x-shader/x-fragment">
+  uniform float delta;
+  uniform float u_time;
+  uniform sampler2D v_samplerPosition_orig;
+  uniform sampler2D u_noise;
+
+  vec3 hash3(vec2 p)
+  {
+    vec3 o = texture2D( u_noise, (p+0.5)/256.0, -100.0 ).xyz;
+    return o;
+  }
+  void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec3 position_original = texture2D(v_samplerPosition_orig, uv).xyz;
+    vec3 position = texture2D(v_samplerPosition, uv).xyz;
+    vec3 velocity = texture2D(v_samplerVelocity, uv).xyz;
+    
+    vec3 pos = position + velocity * delta;
+    
+    if(length(pos) > 100.) {
+      pos = pos / length(pos) * 2.;
+    }
+
+    gl_FragColor = vec4(pos, 1.0);
+  }
+</script>
+<div id="container" touch-action="none"></div>
+<script src='three.min.js'></script>
+<script src='GPUComputationRenderer.js'></script>
+<script src='orbiting.js'></script>
+<script src='ccapture.js'></script>
+<script src="script.js"></script>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/coalesce_20/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:54:24 GMT -->
+</html>

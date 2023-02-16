@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/color_dots/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:54:29 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Color Dots</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="canvas" width="512" height="512"></canvas>
+<script>
+  window.canvasOptions = {
+  	autoClear: true,
+  	autoCompensate: false,
+  	autoPushPop: true,
+  	canvas: true,
+  	centered: true,
+  	desynchronized: false,
+  	width: 512,
+  	height: 512
+  };
+</script>
+<shader-doodle>
+  <sd-texture src="#canvas" name="video" force-update="force-update"></sd-texture>
+  <script type="x-shader/x-fragment">
+    #define PI 3.141592653589793
+    uniform sampler2D video;
+    void main() {
+    	vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+    	vec2 scl = vec2(64.0, 32.0);
+    	vec2 sclUV = uv * scl;
+    	vec2 offset = vec2(0, 0.2 * sin(floor(sclUV.x) / scl.x * PI + u_time));
+    	sclUV = (uv + offset) * scl;
+    	vec2 uvID = mod(floor(sclUV) / scl, 1.0);
+    	vec2 v_ = pow(abs(sin(sclUV * PI)), vec2(1.0, 1.5));
+    	float v = v_.x * v_.y;
+    	v = smoothstep(0.2, 0.3, v);
+    	vec2 txtUV = vec2(0.5) + uvID;
+    	vec4 txt = texture2D(video, txtUV);
+    	vec3 color = vec3(v);
+    	float thing = mod(floor(v * 3.0) / 3.0, 3.0);
+    	color *= txt.rgb;
+    	//- color *= vec3(sin(u_time + uvID.y * PI), cos(u_time + uvID.x), tan(u_time + uvID.x * uvID.y));
+    	//- if(thing == 0.0) {
+    	//- 	color.r *= txt.r;
+    	//- }
+    	//- if(thing == 1.0) {
+    	//- 	color.g *= txt.g;
+    	//- }
+    	//- if(thing == 2.0) {
+    	//- 	color.b *= txt.b;
+    	//- }
+    	gl_FragColor = vec4(color, 1.0);
+    }
+  </script>
+</shader-doodle>
+<script src='shader-doodle.umd.js'></script>
+<script  src="script.js"></script>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/color_dots/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:54:33 GMT -->
+</html>

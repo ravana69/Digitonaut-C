@@ -1,0 +1,7 @@
+body {
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  cursor: move;
+  background: hsla(236, 55%, 5%, 1);
+}

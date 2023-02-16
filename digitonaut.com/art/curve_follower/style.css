@@ -1,0 +1,9 @@
+/* For more check out zachsaucier.com */
+html, body { margin: 0; overflow: hidden; }
+h3 {
+  position: absolute;
+  bottom: 0;
+  font-family: sans-serif;
+  color: white;
+  padding-left: 10px;
+}

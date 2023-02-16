@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/cielab_color_space/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:51:36 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='description' content=''/>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Cielab Color Space</title>
+
+<style>
+canvas {
+	position:fixed;
+	left:50%; top:50%;
+	transform:translate(-50%,-50%);
+	border:0px; outline:0px;
+}
+</style>
+</head>
+<body style='margin:0px;overflow:hidden;background:#000;'>
+<script type="application/processing">
+// Title: CIELAB color space
+// Author: FAL
+// Made with Processing 3.3.6
+/* Log:
+    19. Sep. 2017  First version.
+    30. Sep. 2017  Bug fix (CIELAB -> XYZ conversion method)
+     1. Oct. 2017  Bug fix (Detected that calculation by processing.js may not be correct if you write float suffix (e.g. 2.4f), therefore deleted all suffixes in ColorConversion tab)
+*/
+
+private static final float IDEAL_FRAME_RATE = 30f;
+
+final int lResolution = 10;
+final int abResolution = 20;
+final int dencity = 25;
+color[][][] colorArray;
+boolean[][][] validColorIndicatorArray;
+boolean[] validLightnessIndicatorArray;
+
+ViewAngleController myController;
+
+void setup() {
+  size(screenWidth,screenHeight, P3D);
+  frameRate(IDEAL_FRAME_RATE);
+  background(0f);
+
+  noStroke();
+
+  myController = new ViewAngleController(HALF_PI * 0.7f, PI / 3f, (TWO_PI / 4f) / IDEAL_FRAME_RATE);
+  prepareColorSpace(lResolution, abResolution, dencity);
+}
+
+void draw() {
+  background(0f);
+  ambientLight(96f, 96f, 96f);
+  directionalLight(192f, 192f, 192f, 0, 0, -1);
+
+  myController.addZRotationAngle(0.1f);
+  myController.xRotationAngle = HALF_PI * 0.6f + QUARTER_PI * 0.5f * sin(0.01f * TWO_PI * frameCount / IDEAL_FRAME_RATE);
+  myController.setFieldOfViewAngle((PI / 6f) * (1.25f + 0.25f * sin(0.01f * TWO_PI * frameCount / IDEAL_FRAME_RATE)));
+
+  myController.applyPerspective();
+  myController.translateCoordinates();
+  myController.rotateCoordinates();
+
+  for (int l = 0; l <= 100 / lResolution; l++) {
+    if (validLightnessIndicatorArray[l] == false) continue;
+    for (int a = 0; a < 256 / abResolution; a++) {
+      for (int b = 0; b < 256 / abResolution; b++) {
+        if (validColorIndicatorArray[l][a][b] == false) continue;
+        fill(colorArray[l][a][b]);
+        pushMatrix();
+        float x = (a * abResolution - 128f) * 2f;
+        float y = -(b * abResolution - 128f) * 2f;
+        float z = (l * lResolution - 50f) * 3f;
+        translate(x, y, z);
+        sphere(5f);
+        popMatrix();
+      }
+    }
+  }
+}
+
+
+void prepareColorSpace(int lResolution, int abResolution, int dencity) {
+  colorArray = new color[100 / lResolution + 1][255 / abResolution + 1][255 / abResolution + 1];
+  validColorIndicatorArray = new boolean[100 / lResolution + 1][255 / abResolution + 1][255 / abResolution + 1];
+  for (float r = 0f; int(r) <= 255; r += 255f / dencity) {
+    for (float g = 0f; int(g) <= 255; g += 255f / dencity) {
+      for (float b = 0f; int(b) <= 255; b += 255f / dencity) {
+        CielabColor col = new LinearRgbColor(r, g, b, 255f).toXyzColor().toCielabColor();
+        colorArray[int(col.lValue / lResolution)][int((col.aValue + 128) / abResolution)][int((col.bValue + 128) / abResolution)] = col.toColor();
+        validColorIndicatorArray[int(col.lValue / lResolution)][int((col.aValue + 128) / abResolution)][int((col.bValue + 128) / abResolution)] = true;
+      }
+    }
+  }
+
+  validLightnessIndicatorArray = new boolean[100 / lResolution + 1];
+  for (int l = 0; l <= 100 / lResolution; l++) {
+    for (int a = 0; a < 256 / abResolution; a++) {
+      for (int b = 0; b < 256 / abResolution; b++) {
+        if (validColorIndicatorArray[l][a][b] == true) validLightnessIndicatorArray[l] = true;
+      }
+    }
+  }
+}
+// This tab is independent.
+// Last update: 1. Oct. 2017
+
+// But still I'm not sure if these conversions are really correct!!
+
+abstract class AbstractColor
+{
+  abstract color toColor(float maxValue);
+  color toColor() {
+    return toColor(255.0);
+  }
+}
+
+abstract class RgbColor
+  extends AbstractColor
+{
+  final float redFactor, greenFactor, blueFactor;
+
+  RgbColor(float rFac, float gFac, float bFac) {
+    redFactor = rFac;
+    greenFactor = gFac;
+    blueFactor = bFac;
+  }
+  color toColor(float maxValue) {
+    return color(redFactor * maxValue, greenFactor * maxValue, blueFactor * maxValue);
+  }
+}
+
+final class StandardRgbColor
+  extends RgbColor
+{
+  StandardRgbColor(float rFac, float gFac, float bFac) {
+    super(rFac, gFac, bFac);
+  }
+}
+
+final class LinearRgbColor
+  extends RgbColor
+{
+  LinearRgbColor(float rFac, float gFac, float bFac) {
+    super(rFac, gFac, bFac);
+  }
+  LinearRgbColor(float rVal, float gVal, float bVal, float maxVal) {
+    this(rVal / maxVal, gVal / maxVal, bVal / maxVal);
+  }
+  LinearRgbColor(color rgbColor, float maxVal) {
+    this(((rgbColor >> 16) & 0xFF), ((rgbColor >> 8) & 0xFF), (rgbColor & 0xFF), maxVal);
+    //    alphaValue = ((rgbColor >> 24) & 0xFF);
+  }
+
+  StandardRgbColor toSrgbColor() {
+    return new StandardRgbColor(degamma(redFactor), degamma(greenFactor), degamma(blueFactor));
+  }
+  float degamma(float value) {
+    if ( value <= 0.0031308 ) return 12.92 * value;
+    else return 1.055 * ( pow(value, 1 / 2.4) ) - 0.055;
+  }
+
+  XyzColor toXyzColor() {
+    final float xValue = 0.4124 * redFactor + 0.3576 * greenFactor + 0.1805 * blueFactor;
+    final float yValue = 0.2126 * redFactor + 0.7152 * greenFactor + 0.0722 * blueFactor;
+    final float zValue = 0.0193 * redFactor + 0.1192 * greenFactor + 0.9505 * blueFactor;
+    return new XyzColor(xValue, yValue, zValue);
+  }
+  
+  String toString() {
+    return round(redFactor * 255.0) + ", " + round(greenFactor * 255.0) + ", " + round(blueFactor * 255.0);
+  }  
+}
+
+
+
+final class CielabColor
+  extends AbstractColor
+{
+  // D65/2° standard illuminant.
+  final float tristimulusValueX = 0.95047;
+  final float tristimulusValueY = 1.00000;
+  final float tristimulusValueZ = 1.08883;
+
+  final float lValue, aValue, bValue;
+
+  CielabColor(float l, float a, float b) {
+    lValue = l;
+    aValue = a;
+    bValue = b;
+  }
+
+  color toColor(float maxValue) {
+    return toXyzColor().toColor(maxValue);
+  }
+
+  float getHue() {
+    return atan2(bValue, aValue);
+  }
+  float getSaturation() {
+    return 100.0 * getChroma() / dist(0.0, 0.0, 0.0, lValue, aValue, bValue);
+  }
+  float getChroma() {
+    return sqrt(sq(aValue) + sq(bValue));
+  }
+
+  XyzColor toXyzColor() {
+    final float yFactor = (lValue + 16.0) / 116.0;
+    final float xFactor = yFactor + aValue / 500.0;
+    final float zFactor = yFactor - bValue / 200.0;
+
+    final float xValue = tristimulusValueX * toXyzColorFunc(xFactor);
+    final float yValue = tristimulusValueY * toXyzColorFunc(yFactor);
+    final float zValue = tristimulusValueZ * toXyzColorFunc(zFactor);
+
+    return new XyzColor(constrain(xValue, 0.0, 1.0), constrain(yValue, 0.0, 1.0), constrain(zValue, 0.0, 1.0));
+  }
+
+  float toXyzColorFunc(float value) {
+    final float delta = 6.0 / 29.0;
+    if (value > delta) return value * value * value;
+    else return (value - 16.0 / 116.0) * 3.0 * delta * delta;
+  }
+  
+  String toString() {
+    return "l: " + round(lValue) + ", a: " + round(aValue) + ", b: " + round(bValue);
+  }
+  
+  String toRgbString() {
+    final color c = this.toColor(255.0);
+    return int(red(c)) + ", " + int(green(c)) + ", " + int(blue(c)) + " (#" + hex(c, 6) + ")";
+  }
+}
+
+
+
+final class XyzColor
+  extends AbstractColor
+{
+  // D65/2° standard illuminant.
+  final float tristimulusValueX = 0.95047;
+  final float tristimulusValueY = 1.00000;
+  final float tristimulusValueZ = 1.08883;
+
+  // Value range: 0 to 1
+  final float xValue, yValue, zValue;
+
+  XyzColor(float x, float y, float z) {
+    xValue = x;
+    yValue = y;
+    zValue = z;
+  }
+
+  color toColor(float maxValue) {
+    return toLinearRgbColor().toSrgbColor().toColor(maxValue);
+  }
+
+  LinearRgbColor toLinearRgbColor() {
+    final float redFactor = (3.2404542 * xValue - 1.5371385 * yValue - 0.4985314 * zValue);
+    final float greenFactor = ( -0.9692660 * xValue + 1.8760108 * yValue + 0.0415560 * zValue);
+    final float blueFactor = ( 0.0556434 * xValue - 0.2040259 * yValue + 1.0572252 * zValue);
+
+    return new LinearRgbColor(constrain(redFactor, 0.0, 1.0), constrain(greenFactor, 0.0, 1.0), constrain(blueFactor, 0.0, 1.0));
+  }
+
+  CielabColor toCielabColor() {
+    final float xFracXn = xValue / tristimulusValueX;
+    final float yFracYn = yValue / tristimulusValueY;
+    final float zFracZn = zValue / tristimulusValueZ;
+    final float lValue = 116.0 * toCielabColorFunc(yFracYn) - 16.0;
+    final float aValue = 500.0 * (toCielabColorFunc(xFracXn) - toCielabColorFunc(yFracYn));
+    final float bValue = 200.0 * (toCielabColorFunc(yFracYn) - toCielabColorFunc(zFracZn));
+    return new CielabColor(lValue, aValue, bValue);
+  }
+  private float toCielabColorFunc(float value) {
+    final float delta = 6.0 / 29.0;
+    if (value > pow(delta, 3.0)) return pow(value, 1.0 / 3.0);
+    else return (1.0 / 3.0) * sq(delta) * value + 16.0 / 116.0;
+  }
+  
+  String toString() {
+    return "X: " + round(xValue * 100.0) / 100.0 + ", Y: " + round(yValue * 100.0) / 100.0 + ", Z: " + round(zValue * 100.0) / 100.0;
+  }
+}
+
+
+
+// for converting directly without creating instances
+color cielabColor(float lValue, float aValue, float bValue) {
+  // D65/2° standard illuminant.
+  final float tristimulusValueX = 0.95047;
+  final float tristimulusValueY = 1.00000;
+  final float tristimulusValueZ = 1.08883;
+
+  final float yFactor = (lValue + 16.0) / 116.0;
+  final float xFactor = yFactor + aValue / 500.0;
+  final float zFactor = yFactor - bValue / 200.0;
+
+  final float xValue = constrain(tristimulusValueX * toXyzColorFunc(xFactor), 0.0, 1.0);
+  final float yValue = constrain(tristimulusValueY * toXyzColorFunc(yFactor), 0.0, 1.0);
+  final float zValue = constrain(tristimulusValueZ * toXyzColorFunc(zFactor), 0.0, 1.0);
+
+  final float redFactor =   ( 3.2404542 * xValue - 1.5371385 * yValue - 0.4985314 * zValue);
+  final float greenFactor = (-0.9692660 * xValue + 1.8760108 * yValue + 0.0415560 * zValue);
+  final float blueFactor =  ( 0.0556434 * xValue - 0.2040259 * yValue + 1.0572252 * zValue);
+
+  return color(degamma(constrain(redFactor, 0.0, 1.0)) * 255.0, degamma(constrain(greenFactor, 0.0, 1.0)) * 255.0, degamma(constrain(blueFactor, 0.0, 1.0)) * 255.0);
+}
+
+float toXyzColorFunc(float value) {
+  final float delta = 6.0 / 29.0;
+    if (value > delta) return value * value * value;
+    else return (value - 16.0 / 116.0) * 3.0 * delta * delta;
+}
+
+float degamma(float value) {
+  if (value <= 0.0031308) return 12.92 * value;
+  else return 1.055 * pow(value, 1.0 / 2.4) - 0.055;
+}
+// This tab is independent.
+// Needs constant float IDEAL_FRAME_RATE
+// Last update: 19. Sep. 2017
+
+final class ViewAngleController
+{
+  final float halfWidth, halfHeight;
+  float xRotationAngle, yRotationAngle, zRotationAngle;
+  final float initialXRotationAngle;
+  float fieldOfViewAngle;
+  final float initialFieldOfViewAngle;
+  final float aspectRatio;
+  final float cameraXPosition, cameraYPosition;
+  float cameraZPosition;
+  final float centerXPosition, centerYPosition, centerZPosition;
+  float nearestClippingPlaneZPosition, farthestClippingPlaneZPosition;
+
+  final float unitAngle;
+
+  ViewAngleController(float initXRot, float initFov, float unitAngleValue) {
+    initialXRotationAngle = initXRot;
+    initialFieldOfViewAngle = initFov;
+    unitAngle = unitAngleValue;
+
+    halfWidth = width * 0.5f;
+    halfHeight = height * 0.5f;
+    aspectRatio = float(width) / float(height);
+
+    cameraXPosition = halfWidth;
+    cameraYPosition = halfHeight;
+    centerXPosition = halfWidth;
+    centerYPosition = halfHeight;
+    centerZPosition = 0f;
+
+    initialize();
+  }
+  ViewAngleController() {
+    this(QUARTER_PI, PI / 3f, (TWO_PI / 4f) / IDEAL_FRAME_RATE);
+  }
+
+  void initialize() {
+    xRotationAngle = initialXRotationAngle;
+    yRotationAngle = 0f;
+    zRotationAngle = 0f;
+    setFieldOfViewAngle(initialFieldOfViewAngle);
+  }
+
+  void addFieldOfViewAngle(float v) {
+    setFieldOfViewAngle(fieldOfViewAngle + v * unitAngle);
+  }
+  void setFieldOfViewAngle(float v) {
+    fieldOfViewAngle = v;
+    cameraZPosition = cameraYPosition / tan(fieldOfViewAngle * 0.5f);
+    nearestClippingPlaneZPosition = cameraZPosition * 0.1f;
+    farthestClippingPlaneZPosition = cameraZPosition * 10f;
+  }
+
+  void addXRotationAngle(float v) {
+    xRotationAngle += v * unitAngle;
+  }
+  void addYRotationAngle(float v) {
+    yRotationAngle += v * unitAngle;
+  }
+  void addZRotationAngle(float v) {
+    zRotationAngle += v * unitAngle;
+  }
+
+  void translateCoordinates() {
+    translate(centerXPosition, centerYPosition, centerZPosition);
+  }
+  void rotateCoordinates() {
+    rotateX(xRotationAngle);
+    rotateY(yRotationAngle);
+    rotateZ(zRotationAngle);
+  }
+
+  void applyPerspective() {
+    perspective(fieldOfViewAngle, aspectRatio, nearestClippingPlaneZPosition, farthestClippingPlaneZPosition);
+  }
+
+  void checkKey() {
+    if (!keyPressed) return;
+    processKey();
+  }
+
+  void processKey() {
+    if (key == CODED) {
+      if (keyCode == UP) {
+        addFieldOfViewAngle(-1f); 
+        return;
+      }
+      if (keyCode == DOWN) {
+        addFieldOfViewAngle(+1f); 
+        return;
+      }
+      if (keyCode == LEFT) {
+        addZRotationAngle(-1f);
+        return;
+      }
+      if (keyCode == RIGHT) {
+        addZRotationAngle(+1f);
+        return;
+      }
+    }
+
+    if (key == 'w') { 
+      addXRotationAngle(+1f);
+      return;
+    }
+    if (key == 's') { 
+      addXRotationAngle(-1f);
+      return;
+    }
+    if (key == 'a') {
+      addYRotationAngle(-1f);
+      return;
+    }
+    if (key == 'd') {
+      addYRotationAngle(+1f);
+      return;
+    }
+  }
+}
+</script>
+<canvas> </canvas>
+<script src='processing.min.js'></script>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/cielab_color_space/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:51:48 GMT -->
+</html>

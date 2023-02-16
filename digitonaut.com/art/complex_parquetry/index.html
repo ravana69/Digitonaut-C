@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/complex_parquetry/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:54:42 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Complex Parquetry</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body style='background:#000;'>
+<script src="three.min.js"></script>
+<script id="vertexShader" type="x-shader/x-vertex">
+    void main() {
+        gl_Position = vec4( position, 1.0 );
+    }
+</script>
+<script id="fragmentShader" type="x-shader/x-fragment">
+  uniform vec2 u_resolution;
+  uniform vec2 u_mouse;
+  uniform float u_time;
+  uniform sampler2D u_noise;
+  uniform sampler2D u_tile;
+  
+  #define PI 3.141592653589793
+  #define TAU 6.283185307179586
+  
+  // These awesome complex Math functions curtesy of 
+  // https://github.com/mkovacs/reim/blob/master/reim.glsl
+  vec2 cCis(float r);
+  vec2 cLog(vec2 c); // principal value
+  vec2 cInv(vec2 c);
+  float cArg(vec2 c);
+  float cAbs(vec2 c);
+  
+  vec2 cMul(vec2 a, vec2 b);
+  vec2 cDiv(vec2 a, vec2 b);
+
+  vec2 cCis(float r)
+  {
+    return vec2( cos(r), sin(r) );
+  }
+  vec2 cExp(vec2 c)
+  {
+    return exp(c.x) * cCis(c.y);
+  }
+  vec2 cConj(vec2 c)
+  {
+    return vec2(c.x, -c.y);
+  }
+  vec2 cInv(vec2 c)
+  {
+    return cConj(c) / dot(c, c);
+  }
+  vec2 cLog(vec2 c)
+  {
+    return vec2( log( cAbs(c) ), cArg(c) );
+  }
+  float cArg(vec2 c)
+  {
+    return atan(c.y, c.x);
+  }
+  float cAbs(vec2 c)
+  {
+    return length(c);
+  }
+  vec2 cMul(vec2 a, vec2 b)
+  {
+    return vec2(a.x*b.x - a.y*b.y, a.x*b.y + a.y*b.x);
+  }
+  vec2 cDiv(vec2 a, vec2 b)
+  {
+    return cMul(a, cInv(b));
+  }
+
+  vec2 hash2(vec2 p)
+  {
+    vec2 o = texture2D( u_noise, (p+0.5)/256.0, -100.0 ).xy;
+    return o;
+  }
+  
+  vec3 hsb2rgb( in vec3 c ){
+    vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),
+                             6.0)-3.0)-1.0,
+                     0.0,
+                     1.0 );
+    rgb = rgb*rgb*(3.0-2.0*rgb);
+    return c.z * mix( vec3(1.0), rgb, c.y);
+  }
+  
+  
+	float ease(float t, float b, float c, float d) {
+		return -c*.5 * (cos(PI*t/d) - 1.) + b;
+	}
+  
+  vec2 sqdroste(vec2 z) {
+    
+    float angle = atan(log(2.)/(.5*PI));
+    z = cExp(cDiv(cLog(z), cExp(vec2(0,angle))*cos(angle))); 
+    
+    float t = mod(u_time, 1.);
+    float l = 1. + t;
+    l = l*l*l + 1.3; // I have no idea why hthis works, but it seems to. So YAR! This magic number basically just accounts for the "easing" that comes about because of the scaling down of the texture.
+    
+    z /= l;
+    
+    vec2 a_z = abs(z);
+    float scale = exp2(-floor(log2(max(a_z.y, a_z.x))));
+    z *= scale;
+    
+    return z;
+  }
+
+  void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.y, u_resolution.x);
+    
+    uv = sqdroste(uv);
+    vec2 frac = fract(uv);
+    
+    vec3 fragcolour = texture2D(u_tile, frac).rgb;
+
+    gl_FragColor = vec4(fragcolour*(fragcolour*1.6+.1)*1.5,1.0);
+  }
+</script>
+<div id="container" touch-action="none"></div>
+<script src='ccapture.js'></script>
+<script  src="script.js"></script>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/complex_parquetry/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:54:47 GMT -->
+</html>

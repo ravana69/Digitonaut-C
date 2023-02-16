@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/colored_ripple/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:54:37 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Colored Ripple</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<css-doodle>
+  :doodle {
+    @grid: 50x1 / 100%;
+    @use: var(--filter);
+  }
+  :container {
+    animation: r 20s linear infinite;
+  }
+  @place-cell: center;
+  @size: 100% 2vmin;
+  background: @pd(#60569e, #e6437d, #ebbf4d);
+  transform-origin: 1vmin center;
+  transform:
+    translateX(50%)
+    rotate(calc(@i() * 360deg / @size()));
+  
+  @keyframes r {
+    to { transform: rotate(1turn) }
+  }
+</css-doodle>
+  <script src='css-doodle.min.js'></script>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/colored_ripple/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:54:38 GMT -->
+</html>

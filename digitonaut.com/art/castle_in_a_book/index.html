@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Mirrored from digitonaut.com/art/castle_in_a_book/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:49:05 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Castle In A Book</title>
+
+<link type="text/css" rel="stylesheet" href="main.css">
+</head>
+<body>
+
+<script id="vs" type="not-js">
+void main()	{
+  gl_Position = vec4( position, 1.0 );
+}
+</script>
+<script id="fs" type="not-js">
+precision mediump float;
+
+// -------------------------------------------- code from https://glslsandbox.com/ ------------------
+
+
+
+// BEGIN: shadertoy porting template
+// https://gam0022.net/blog/2019/03/04/porting-from-shadertoy-to-glslsandbox/
+precision highp float;
+
+uniform vec2 resolution;
+uniform float time;
+uniform vec2 mouse;
+
+#define iResolution resolution
+#define iTime time
+#define iMouse mouse
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord);
+
+void main(void) {
+    vec4 col;
+    mainImage(col, gl_FragCoord.xy);
+    gl_FragColor = col;
+}                                  
+                     
+
+// Emulate a black texture
+#define texture(s, uv) vec4(0.0)         
+
+// "Chateaux..."  by dr2 - 2019
+// License: Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License
+
+#define AA    0   // optional antialiasing
+
+float PrBoxDf (vec3 p, vec3 b);
+float PrBox2Df (vec2 p, vec2 b);
+float PrRoundBoxDf (vec3 p, vec3 b, float r);
+float PrSphDf (vec3 p, float r);
+float PrCylDf (vec3 p, float r, float h);
+float PrFlatCylDf (vec3 p, float rhi, float rlo, float h);
+float PrTorusDf (vec3 p, float ri, float rc);
+float PrConeDf (vec3 p, vec3 b);
+float SmootherStep (float a, float b, float x);
+float SmoothMin (float a, float b, float r);
+float SmoothBump (float lo, float hi, float w, float x);
+mat3 StdVuMat (float el, float az);
+vec2 Rot2D (vec2 q, float a);
+vec2 PixToHex (vec2 p);
+vec2 HexToPix (vec2 h);
+vec3 HsvToRgb (vec3 c);
+float Hashfv2 (vec2 p);
+vec2 Hashv2v2 (vec2 p);
+float Noisefv2 (vec2 p);
+float Noisefv3 (vec3 p);
+float Fbm1 (float p);
+float Fbm2 (vec2 p);
+vec3 VaryNf (vec3 p, vec3 n, float f);
+float random(in vec2 uv);           //////////////// rain
+float noise(in vec2 uv) ;           ////////////////  rain
+
+
+#define DMIN(id) if (d < dMin) { dMin = d;  idObj = id; }
+#define DMINQ(id) if (d < dMin) { dMin = d;  idObj = id;  qHit = q; }
+
+vec4 snowCol;
+vec3 sunDir, trkA, trkF, bldSize, ltDirEx, qHit, pgSize;
+vec2 gId, trOff, trkA2, trkF2;
+float tCur, dstFar, hgSize, szFac, trSym, grHt, trRot, snowFac, zRep, bldSzFac,
+   dstFarEx, tpBook, phsTurn, idPage, msAz, msEl;
+int idObj, vuMode;
+bool isNt, isFlsh;
+const int idFnd = 1, idWal = 2, idWin = 3, idTwr = 4, idRf = 5, idFlr = 6, idRmp = 7, 
+   idPil = 8, idRod = 9, idFlag = 10, idTrnk = 21, idLv = 22, idRk = 23;
+const float pi = 3.14159, sqrt3 = 1.7320508;
+const int nPage = 6;
+
+#if 0
+#define VAR_ZERO min (iFrame, 0)
+#else
+#define VAR_ZERO 0
+#endif
+
+vec2 TrackPathS (float t)
+{
+  return vec2 (dot (trkA, cos (2. * pi * trkF * t)), t);
+}
+
+vec2 TrackPath (float t)
+{
+  return TrackPathS (t) + vec2 (dot (trkA2, cos (2. * pi * trkF2 * t)), 0.);
+}
+
+float GrndHt (vec2 p)
+{
+  float h, w;
+  h = 0.5 + 0.17 * (sin (dot (p, vec2 (1., 1.4))) + sin (dot (p, vec2 (-1.2, 0.8)))) *
+     smoothstep (1., 2., abs (mod (p.y + zRep, 2. * zRep) - zRep));
+  w = abs (p.x - TrackPath (p.y).x) * (1.1 + 0.3 * sin (0.5 * p.y));
+  h = h * SmootherStep (4.35, 5., w) - 0.05 * (1. - w * w / (4.3 * 4.3)) * step (w, 4.3);
+  return h;
+}
+
+float GrndRay (vec3 ro, vec3 rd)
+{
+  vec3 p;
+  float dHit, h, s, sLo, sHi;
+  s = 0.;
+  sLo = 0.;
+  dHit = dstFar;
+  for (int j = VAR_ZERO; j < 220; j ++) {
+    p = ro + s * rd;
+    h = p.y - GrndHt (p.xz);
+    if (h < 0.) break;
+    sLo = s;
+    s += max (0.05, 0.5 * h);
+    if (s > dstFar) break;
+  }
+  if (h < 0.) {
+    sHi = s;
+    for (int j = VAR_ZERO; j < 5; j ++) {
+      s = 0.5 * (sLo + sHi);
+      p = ro + s * rd;
+      if (p.y > GrndHt (p.xz)) sLo = s;
+      else sHi = s;
+    }
+    dHit = sHi;
+  }
+  return dHit;
+}
+
+vec3 GrndNf (vec3 p)
+{
+  vec2 e;
+  e = vec2 (0.01, 0.);
+  return normalize (vec3 (GrndHt (p.xz) - vec2 (GrndHt (p.xz + e.xy),
+     GrndHt (p.xz + e.yx)), e.x).xzy);
+}
+
+float ObjCdf (vec3 p)
+{
+  vec3 q, qq;
+  float dMin, d, ht;
+  dMin = dstFar;
+  p.xz -= HexToPix (gId) * hgSize + trOff;
+  if (szFac > 0.) {
+    dMin /= szFac;
+    p.xz = Rot2D (p.xz, trRot);
+    p.y -= grHt - 0.1;
+    p /= szFac;
+    ht = 2.2;
+    q = p;
+    q.y -= ht;
+    d = PrCylDf (q.xzy, 0.12 - 0.03 * q.y / ht, ht);
+    qq = p;
+    qq.xz = Rot2D (qq.xz, 2. * pi * (floor (trSym * atan (qq.z, - qq.x) / (2. * pi) +
+       0.5) / trSym));
+    q = qq;
+    q.xy = Rot2D (q.xy - vec2 (-0.2, 0.3), -0.3 * pi);
+    d = SmoothMin (d, PrCylDf (q.yzx, 0.09 + 0.02 * q.x / 0.6, 0.6), 0.2);
+    q = qq;
+    q.xy = Rot2D (q.xy - vec2 (-0.2, 1.2 * ht), 0.3 * pi);
+    d = SmoothMin (d, PrCylDf (q.yzx, 0.05 + 0.02 * q.x / 0.5, 0.5), 0.1);
+    DMIN (idTrnk);
+    q = p;
+    q.y -= 2. * ht;
+    d = SmoothMin (min (PrSphDf (q + vec3 (0, -1., 0.), 0.6),
+       PrSphDf (vec3 (qq.x + 0.4, q.y + 1., qq.z), 0.6)), PrSphDf (q, 1.), 0.5);
+    DMIN (idLv);
+    dMin *= szFac;
+  } else  if (szFac < 0.) {
+    q = p;
+    d = PrSphDf (q, - szFac * 0.25);
+    DMIN (idRk);
+  }
+  return dMin;
+}
+
+void SetTrParms ()
+{
+  vec2 g, w, v;
+  float s;
+  szFac = 0.3 + 0.4 * Hashfv2 (17. * gId + 99.);
+  trSym = floor (3. + 2.9 * Hashfv2 (19. * gId + 99.));
+  w = Hashv2v2 (33. * gId);
+  g = HexToPix (gId) * hgSize;
+  s = abs (g.x - TrackPath (g.y).x);
+  if (length (vec2 (max (s, 10.), mod (g.y + zRep, 2. * zRep) - zRep)) < 10.5) {
+    szFac = 0.;
+  } else {
+    v = w.x * sin (2. * pi * w.y + vec2 (0.5 * pi, 0.));
+    if (s < 1.5) {
+      trOff = hgSize * 0.5 * sqrt3 * v;
+      szFac *= -1.;
+    } else if (s < 6.5) {
+      szFac = 0.;
+    } else {
+      trOff = max (0., hgSize * 0.5 * sqrt3 - szFac) * v;
+      trRot = 0.6 * pi * (Hashfv2 (23. * gId + 99.) - 0.5);
+      grHt = GrndHt (g + trOff);
+    }
+  }
+}
+
+float ObjCRay (vec3 ro, vec3 rd)
+{
+  vec3 vri, vf, hv, p;
+  vec2 edN[3], pM, gIdP;
+  float dHit, d, s, eps;
+  eps = 0.0005;
+  edN[0] = vec2 (1., 0.);
+  edN[1] = 0.5 * vec2 (1., sqrt3);
+  edN[2] = 0.5 * vec2 (1., - sqrt3);
+  for (int k = 0; k < 3; k ++) edN[k] *= sign (dot (edN[k], rd.xz));
+  vri = hgSize / vec3 (dot (rd.xz, edN[0]), dot (rd.xz, edN[1]), dot (rd.xz, edN[2]));
+  vf = 0.5 * sqrt3 - vec3 (dot (ro.xz, edN[0]), dot (ro.xz, edN[1]),
+     dot (ro.xz, edN[2])) / hgSize;
+  pM = HexToPix (PixToHex (ro.xz / hgSize));
+  gIdP = vec2 (-99.);
+  dHit = 0.;
+  for (int j = VAR_ZERO; j < 160; j ++) {
+    hv = (vf + vec3 (dot (pM, edN[0]), dot (pM, edN[1]), dot (pM, edN[2]))) * vri;
+    s = min (hv.x, min (hv.y, hv.z));
+    p = ro + dHit * rd;
+    gId = PixToHex (p.xz / hgSize);
+    if (gId != gIdP) {
+      gIdP = gId;
+      SetTrParms ();
+    }
+    d = ObjCdf (p);
+    if (dHit + d < s) {
+      dHit += d;
+    } else {
+      dHit = s + eps;
+      pM += sqrt3 * ((s == hv.x) ? edN[0] : ((s == hv.y) ? edN[1] : edN[2]));
+    }
+    if (d < eps || dHit > dstFar || p.y < 0.) break;
+  }
+  if (d >= eps) dHit = dstFar;
+  return dHit;
+}
+
+vec3 ObjCNf (vec3 p)
+{
+  vec4 v;
+  vec2 e;
+  e = vec2 (0.0005, -0.0005);
+  v = vec4 (- ObjCdf (p + e.xxx), ObjCdf (p + e.xyy), ObjCdf (p + e.yxy), ObjCdf (p + e.yyx));
+  return normalize (2. * v.yzw - dot (v, vec4 (1.)));
+}
+
+float ObjCSShadow (vec3 ro, vec3 rd)
+{
+  vec3 p;
+  vec2 gIdP;
+  float sh, d, h;
+  sh = 1.;
+  gIdP = vec2 (-99.);
+  d = 0.01;
+  for (int j = VAR_ZERO; j < 30; j ++) {
+    p = ro + d * rd;
+    gId = PixToHex (p.xz / hgSize);
+    if (gId != gIdP) {
+      gIdP = gId;
+      SetTrParms ();
+    }
+    h = ObjCdf (p);
+    sh = min (sh, smoothstep (0., 0.1 * d, h));
+    d += clamp (h, 0.05, 0.5);
+    if (sh < 0.05) break;
+  }
+  return 0.5 + 0.5 * sh;
+}
+
+float ObjDf (vec3 p)
+{
+  vec3 q;
+  vec2 vb, vc;
+  float dMin, d, dd, t;
+  dMin = dstFar;
+  dMin /= bldSzFac;
+  p.z = mod (p.z + zRep, 2. * zRep) - zRep;
+  p.x -= TrackPath (0.).x;
+  p /= bldSzFac;
+  p.y -= 1.;
+  q = p;
+  q.x = abs (q.x) - bldSize.x - 3.;
+  q.y -= 0.6 - 0.2 * q.x;
+  d = max (PrBoxDf (q, vec3 (2.64, 0.3, 0.7)),
+     - PrBox2Df (q.yz - vec2 (0.2, 0.), vec2 (0.3, 0.6)));
+  DMIN (idRmp);
+  q.xz = abs (q.xz) - vec2 (2.7, 0.65);
+  d = PrCylDf (q.xzy, 0.08, 0.33);
+  DMIN (idPil);
+  q = p;
+  d = abs (q.x) - 5.;
+  q.x = mod (q.x + 1., 2.) - 1.;
+  d = max (PrFlatCylDf (q.zxy, bldSize.z + 0.3, 0.4, 1.), d);
+  DMIN (idFnd);
+  q = p;
+  q.y -= 0.5;
+  d = max (PrBoxDf (q, vec3 (bldSize.x + 0.4, 0.5, bldSize.z + 0.3)),
+     0.6 - length (vec2 (mod (q.x, 2.) - 1., q.y + 0.5)));
+  DMIN (idFnd);
+  q = p;
+  q.y -= 1. + bldSize.y;
+  vb = mod (q.xz + 0.5, 1.) - 0.5;
+  vc = abs (q.xz) - bldSize.xz + 0.15;
+  d = max (max (max (PrBoxDf (q, bldSize), - PrBox2Df (q.xz, bldSize.xz - 0.14)),
+     - min (max (PrBox2Df (vec2 (vb.x, abs (q.y) - 0.7), vec2 (0.2, 0.45)), vc.x),
+     max (PrBox2Df (vec2 (vb.y, abs (q.y) - 0.7), vec2 (0.2, 0.45)), vc.y))),
+     0.3 - length (vc - 0.15));
+  dd = PrBox2Df (vec2 (q.y + 0.85, q.z), vec2 (0.6, 0.35));
+  d = max (d, - dd);
+  DMIN (idWal);
+  q = p;
+  q.y -= 1. + 2. * bldSize.y + 0.15;
+  vb = abs (mod (q.xz + 0.25, 0.5) - 0.25);
+  d = max (max (PrBoxDf (q, vec3 (bldSize.x, 0.15, bldSize.z)), - PrBox2Df (q.xz, bldSize.xz - 0.1)),
+     -0.125 + max (vb.x, vb.y));
+  DMIN (idWal);
+  q = p;
+  q.y -= 1. + bldSize.y - 0.1;
+  d = PrBoxDf (q, vec3 (bldSize.x, 0.05, bldSize.z));
+  DMIN (idFlr);
+  q = p;
+  t = abs (q.z) - bldSize.z + 0.05;
+  q.yz = vec2 (abs (q.y - (1. + bldSize.y) - 0.1) - 0.7, t);
+  d = PrCylDf (q.yzx, 0.025, bldSize.x);
+  q = vec3 (mod (p.x + 0.5, 1.) - 0.5, p.y - (1. + bldSize.y), t);
+  d = min (d, max (PrCylDf (q.xzy, 0.025, bldSize.y), vc.x));
+  DMIN (idWin);
+  q = p;
+  t = abs (q.x) - bldSize.x + 0.05;
+  q.xy = vec2 (t, abs (q.y - (1. + bldSize.y) - 0.1) - 0.7);
+  d = PrCylDf (q, 0.025, bldSize.z);
+  q = vec3 (t, p.y - (1. + bldSize.y), mod (p.z + 0.5, 1.) - 0.5);
+  d = min (d, max (PrCylDf (q.xzy, 0.025, bldSize.y), vc.y));
+  d = max (d, - dd);
+  DMIN (idWin);
+  q = p;
+  q.y -= 2. * bldSize.y + 2.15;
+  d = 0.7 * max (max (q.y + max (abs (q.x) - 2.75, 0.6 * abs (q.z)), - q.y - 1.2),
+     PrBox2Df (q.xz, bldSize.xz - 0.1));
+  DMIN (idRf);
+  q = vec3 (vc - 0.15, p.y - (1.2 + bldSize.y)).xzy;
+  d = PrCylDf (q.xzy, 0.3, bldSize.y + 0.2);
+  DMIN (idTwr);
+  q.y -= 1. + bldSize.y;
+  d = 0.9 * PrConeDf (q.xzy, vec3 (1., 0.3, 0.8));
+  DMIN (idRf);
+  q.y -= 0.15;
+  d = PrCylDf (q.xzy, 0.03, 0.3);
+  DMIN (idRod);
+  q.xy -= vec2 (0.2 * sign (p.x), 0.15);
+  d = PrRoundBoxDf (q, vec3 (0.2, 0.1, 0.005), 0.005);
+  DMIN (idFlag);
+  return bldSzFac * dMin;
+}
+
+float ObjRay (vec3 ro, vec3 rd)
+{
+  float dHit, d;
+  dHit = 0.;
+  for (int j = VAR_ZERO; j < 120; j ++) {
+    d = ObjDf (ro + dHit * rd);
+    dHit += d;
+    if (d < 0.001 || dHit > dstFar) break;
+  }
+  return dHit;
+}
+
+vec3 ObjNf (vec3 p)
+{
+  vec4 v;
+  vec2 e = vec2 (0.001, -0.001);
+  v = vec4 (- ObjDf (p + e.xxx), ObjDf (p + e.xyy), ObjDf (p + e.yxy), ObjDf (p + e.yyx));
+  return normalize (2. * v.yzw - dot (v, vec4 (1.)));
+}
+
+float ObjSShadow (vec3 ro, vec3 rd)
+{
+  float sh, d, h;
+  sh = 1.;
+  d = 0.1;
+  for (int j = VAR_ZERO; j < 30; j ++) {
+    h = ObjDf (ro + d * rd);
+    sh = min (sh, smoothstep (0., 0.05 * d, h));
+    d += clamp (h, 0.05, 0.5);
+    if (sh < 0.05) break;
+  }
+  return 0.5 + 0.5 * sh;
+}
+
+vec3 SkyCol (vec3 ro, vec3 rd)
+{
+  vec3 col, vn, clCol, skCol;
+  vec2 q;
+  float f, ff, fd;
+  rd.y = abs (rd.y) + 0.0001;
+  q = 0.01 * (ro.xz + 4. * tCur + ((50. - ro.y) / rd.y) * rd.xz);
+  ff = Fbm2 (q);
+  f = smoothstep (0.2, 0.8, ff);
+  fd = smoothstep (0.2, 0.8, Fbm2 (q + 0.01 * sunDir.xz)) - f;
+  clCol = (0.7 + 0.5 * ff) * (vec3 (0.7) - 0.7 * vec3 (0.3, 0.3, 0.2) * sign (fd) *
+     smoothstep (0., 0.05, abs (fd)));
+  fd = smoothstep (0.01, 0.1, rd.y);
+  skCol = isNt ? vec3 (0.2, 0.2, 0.2) : vec3 (0.4, 0.5, 0.8);
+  skCol = mix ((vec3 (0.7, 0.7, 0.75)), skCol, 0.3 + 0.7 * fd);
+  col = mix (skCol, (isNt ? 0.8 : 1.) * clCol, 0.1 + 0.9 * f * fd);
+  return col;
+}
+
+void BldCol (vec3 p, vec3 vn, out vec4 col4, out vec2 vf)
+{
+  vec4 snCol, wallCol;
+  vec3 u, uu;
+  float zColr;
+  snCol = snowCol;
+  u = p;
+  u.x -= TrackPath (0.).x;
+  zColr = mod (floor (u.z / (2. * zRep) + 0.5), 4.);
+  u.z = mod (u.z + zRep, 2. * zRep) - zRep;
+  u /= bldSzFac;
+  u.y -= 1.;
+  wallCol = vec4 (HsvToRgb (vec3 (0.05 + 0.06 * zColr / 3., 0.7, 1.)), 0.1);
+  col4 = vec4 (0.);
+  vf = vec2 (0.);
+  if (idObj == idWal) {
+    uu.xz = mod (u.xz + 0.5, 1.) - 0.5;
+    u.xz = abs (u.xz);
+    uu.y = u.y - 1. - bldSize.y;
+    if (abs (uu.y + 0.85) < 0.7 && u.x > bldSize.x - 0.2 && u.z < 0.45) {
+      col4 = vec4 (0.3, 0.5, 0.4, 0.1);
+    } else if (abs (abs (uu.y) - 0.7) < 0.5 && (u.z > bldSize.z - 0.2 &&
+       abs (uu.x) < 0.25 || u.x > bldSize.x - 0.2 && abs (uu.z) < 0.25)) {
+       col4 = vec4 (0.7, 0.6, 0.5, 0.1);
+    } else {
+      col4 = wallCol;
+      if (abs (u.x) > bldSize.x - 0.01 || abs (u.z) > bldSize.z - 0.01)
+         col4.rgb *= 0.9 + 0.1 * SmoothBump (0.1, 0.9, 0.02, mod (10. * u.y + 0.5, 1.));
+    }
+    if (u.y < 2. * bldSize.y + 1.) snCol.r = -1.;
+    vf = vec2 (32., 0.2);
+  } else if (idObj == idTwr) {
+    col4 = wallCol;
+    vf = vec2 (32., 0.2);
+  } else if (idObj == idRf) {
+    col4 = vec4 (0.55, 0.6, 0.55, 0.1) * (0.93 +
+       0.07 * SmoothBump (0.05, 0.95, 0.02, mod (8. * u.y, 1.)));
+  } else if (idObj == idFnd) {
+    if (vn.y > 0.99) {
+      if (abs (u.x) < bldSize.x && abs (u.z) < bldSize.z) {
+        col4 = (isNt ? 0.6 : 1.) * vec4 (0.5, 0.2, 0., 0.1);
+        snCol.r = -1.;
+      } else {
+        if (vuMode == 0) {
+          col4 = vec4 (0.5, 0.5, 0.55, 0.1);
+        } else {
+          col4 = 0.4 * wallCol;
+          snCol.r = -1.;
+        }
+        vf = vec2 (32., 0.2);
+      }
+    } else {
+      col4 = 0.7 * wallCol;
+      if (u.y < -0.6) col4.rgb *= 0.8 * (0.8 +
+         0.2 * SmoothBump (0.1, 0.9, 0.02, mod (8. * u.y, 1.)));
+      if (u.y < 0.6 && abs (u.z) < bldSize.z) col4.rgb *= (0.8 +
+         0.2 * SmoothBump (0.08, 0.92, 0.02, mod (4. * u.z, 1.)));
+      vf = vec2 (32., 0.5);
+    }
+  } else if (idObj == idRmp) {
+    if (abs (vn.z) > 0.99) col4 = wallCol;
+    else col4 = vec4 (0.5, 0.5, 0.55, 0.1);
+    vf = vec2 (32., 0.2);
+  } else if (idObj == idPil) {
+    col4 = wallCol;
+    vf = vec2 (32., 0.1);
+  } else if (idObj == idFlr) {
+    col4 = (isNt ? 0.6 : 1.) * vec4 (0.5, 0.2, 0., 0.1);
+    snCol.r = -1.;
+  } else if (idObj == idWin) {
+    col4 = vec4 (0.4, 0.4, 0.3, 0.3);
+    vf = vec2 (16., 0.3);
+  } else if (idObj == idRod) {
+    col4 = vec4 (0.9, 0.9, 0.9, 0.2);
+  } else if (idObj == idFlag) {
+    col4 = vec4 (mix (HsvToRgb (vec3 (zColr / 4., 1., 1.)), vec3 (1.2),
+       step (u.y, 2. * bldSize.y + 2.5)), 0.2);
+  }
+  if (snCol.r > 0.) {
+    col4 = mix (col4, snCol, snowFac * smoothstep (0.3, 0.8, vn.y));
+    if (snowFac > 0.5) vf = vec2 (32., 2. * smoothstep (0.5, 0.7, snowFac)) *
+       smoothstep (0.3, 0.8, vn.y);
+  }
+}
+
+void TrStCol (vec3 p, vec3 vn, out vec4 col4, out vec2 vf)
+{
+  vec4 snCol;
+  float h1, h2;
+  col4 = vec4 (0.);
+  vf = vec2 (0.);
+  gId = PixToHex (p.xz / hgSize);
+  h1 = Hashfv2 (gId * vec2 (17., 27.) + 0.5);
+  h2 = Hashfv2 (gId * vec2 (19., 29.) + 0.5);
+  if (idObj == idTrnk) {
+    col4 = vec4 (HsvToRgb (vec3 (0.1 * h1, 0.5, 0.4 - 0.2 * h2)), 0.);
+    snCol = mix (snowCol, mix (col4, snowCol, smoothstep (0.01, 0.2, vn.y)),
+       smoothstep (0.1 * szFac, 0.3 * szFac, p.y - GrndHt (HexToPix (gId) * hgSize)));
+    vf = vec2 (32., 2.);
+  } else if (idObj == idLv) {
+    col4 = vec4 (HsvToRgb (vec3 (0.2 + 0.2 * h1, 0.7, 0.8 - 0.4 * h2)) *
+       (1. - 0.2 * Noisefv3 (64. * p)), 0.05);
+    snCol = mix (0.6 * col4, snowCol, 0.2 + 0.8 * smoothstep (-0.8, -0.6, vn.y));
+    vf = vec2 (16., mix (2., 8., 1. - snowFac));
+  } else if (idObj == idRk) {
+    col4 = vec4 (mix (vec3 (0.4, 0.3, 0.3), vec3 (0.3, 0.4, 0.5), Fbm2 (16. * p.xz)), 0.1);
+    snCol = mix (col4, snowCol, 0.2 + 0.8 * smoothstep (0.1, 0.3, vn.y));
+    vf = vec2 (8., 8.);
+  }
+  col4 = mix (col4, snCol, snowFac);
+}
+
+vec3 ShowScene (vec3 ro, vec3 rd)
+{
+  vec4 col4;
+  vec3 col, c1, c2, vn, vnw, rog, roo, rdo;
+  vec2 vf;
+  float dstObjC, dstObjM, dstObj, dstGrnd, dstWat, sh, spec, s, glit;
+  int idObjC;
+  bool isRefl, isSky, isGlit;
+  hgSize = 1.5;
+  bldSize = vec3 (4., 1.5, 2.);
+  bldSzFac = 0.5;
+  isRefl = false;
+  isSky = false;
+  isGlit = false;
+  snowCol = vec4 (0.9, 0.9, 0.95, 0.2);
+  spec = 0.;
+  roo = ro;
+  rdo = rd;
+  dstGrnd = GrndRay (ro, rd);
+  dstObjC = ObjCRay (ro, rd);
+  idObjC = idObj;
+  dstObjM = ObjRay (ro, rd);
+  dstWat = (rd.y < 0.) ? - ro.y / rd.y : dstFar;
+  rog = ro + dstGrnd * rd;
+  dstObj = min (dstObjM, dstObjC);
+  if (dstWat < min (min (dstGrnd, dstObj), dstFar)) {
+    ro += dstWat * rd;
+    vnw = VaryNf (ro + vec3 (0., 0., 0.2 * tCur), vec3 (0., 1., 0.),
+       0.2 - 0.18 * smoothstep (0.1, 0.15, dstWat / dstFar));
+    rd = reflect (rd, vnw);
+    ro += 0.01 * rd;
+    dstGrnd = GrndRay (ro, rd);
+    dstObjC = ObjCRay (ro, rd);
+    idObjC = idObj;
+    dstObjM = ObjRay (ro, rd);
+    dstObj = min (dstObjM, dstObjC);
+    isRefl = true;
+  }
+  vf = vec2 (0.);
+  if (min (dstGrnd, dstObj) < dstFar) {
+    if (dstObj < dstGrnd) {
+      if (dstObjM < dstObjC) {
+        ro += dstObjM * rd;
+        vn = ObjNf (ro);
+        BldCol (ro, vn, col4, vf);
+        col = col4.rgb;
+        spec = col4.a;
+        if (vn.y > 0.8) isGlit = true;
+      } else {
+        ro += dstObjC * rd;
+        vn = ObjCNf (ro);
+        idObj = idObjC;
+        TrStCol (ro, vn, col4, vf);
+        col = col4.rgb;
+        spec = col4.a;
+      }
+    } else if (dstGrnd < dstFar) {
+      ro += dstGrnd * rd;
+      gId = PixToHex (ro.xz / hgSize);
+      SetTrParms ();
+      vn = GrndNf (ro);
+      vf = vec2 (8., 4.);
+      if (snowFac < 1.) {
+        c1 = mix (vec3 (0.1, 0.2, 0.15), vec3 (0.2, 0.4, 0.2),
+           smoothstep (0.3, 0.5, Fbm2 (8. * ro.xz)));
+        if (szFac > 0.) c1 = mix (vec3 (0.15, 0.05, 0.1), c1, 0.2 + 0.8 *
+           smoothstep (0.4 * szFac, 0.7 * szFac, length (ro.xz - HexToPix (gId) * hgSize - trOff)));
+        c1 *= (1. - 0.2 * Noisefv2 (128. * ro.xz));
+        c2 = vec3 (0.3, 0.3, 0.35) * (1. - 0.2 * Noisefv2 (256. * ro.zy));
+        col = mix (c2, mix (c2, c1, smoothstep (0.4, 0.7, vn.y)),
+           smoothstep (0., 0.005 * Noisefv2 (128. * ro.xz), ro.y));
+      } else col = vec3 (0.);
+      col = mix (col, snowCol.rgb, snowFac);
+      isGlit = true;
+    }
+    if (vf.x > 0.) vn = VaryNf (vf.x * ro, vn, vf.y);
+    sh = (! isNt) ? min (ObjCSShadow (ro, sunDir), ObjSShadow (ro, sunDir)) : 1.;
+    col = col * (0.2 + 0.2 * max (dot (normalize (- sunDir.xz), vn.xz), 0.) +
+       0.1 * max (vn.y, 0.) + 0.8 * sh * max (dot (vn, sunDir), 0.));
+    if (! isNt) col += step (0.95, sh) * spec * pow (max (dot (normalize (sunDir - rd), vn), 0.), 32.);
+  } else {
+    if (! isRefl) {
+      ro = roo;
+      rd = rdo;
+    }
+    col = SkyCol (ro, rd);
+    isSky = true;
+  }
+  if (! isNt && isGlit && snowFac > 0.) {
+    glit = 64. * step (0.01, max (0., dot (vn, sunDir))) *
+       pow (max (0., dot (sunDir, reflect (rd, vn))), 16.) *
+       pow (1. - 0.6 * abs (dot (normalize (sunDir - rd), VaryNf (512. * ro, vn, 8.))), 8.);
+    col += vec3 (1., 1., 0.8) * smoothstep (0.6, 0.9, snowFac) * step (0.95, sh) * glit;
+  }
+  if (isRefl) col = mix (mix (vec3 (0., 0.1, 0.), vec3 (0.08, 0.08, 0.1),
+     smoothstep (0.45, 0.55, Noisefv2 (128. * rog.xz))), 0.95 * col,
+     1. - 0.9 * pow (dot (- rdo, vnw), 2.));
+  if (! isSky) col = mix (col, vec3 (0.65, 0.65, 0.7), smoothstep (0.7, 1.,
+     (min (dstGrnd, dstObj) + (isRefl ? dstWat : 0.)) / dstFar));
+  if (isNt) col = mix (col, vec3 (pow (max (max (col.r, col.g), col.b), 1.5)), 0.8) *
+     (isFlsh ? 1.5 * vec3 (1., 1., 0.8) : vec3 (0.3));
+  return col;
+}
+
+#define ISBOOK  1
+
+////////////////////////////////////////////////////////  snow adition 1
+
+//snow original -> http://glslsandbox.com/e#36547.1
+float snow(vec2 uv,float scale)
+{
+    float time = iTime*0.75;
+	uv+=time/scale;
+    uv.y+=time*2./scale;
+    uv.x+=sin(uv.y+time*.5)/scale;
+	uv*=scale;
+    vec2 s=floor(uv);
+    vec2 f=fract(uv);
+    float k=3.0;
+	vec2 p =.5+.35*sin(11.*fract(sin((s+scale)*mat2(7.0,3.0,6.0,5.0))*5.))-f;
+    float d=length(p);
+    k=min(d,k);
+	k=smoothstep(0.,k,sin(f.x+f.y)*0.01);
+   	return k;
+}
+
+
+vec3 _Snow(vec2 uv,vec3 background)
+{
+	float c = snow(uv,30.)*.3;
+	c+=snow(uv,20.)*.5;
+	c+=snow(uv,15.)*.8;
+	c+=snow(uv,10.);
+	c+=snow(uv,8.);
+	c+=snow(uv,6.);
+	c+=snow(uv,5.);
+    c = clamp(c,0.0,1.0);
+    vec3 scol = vec3(1.0,1.0,1.0);
+    scol = mix(background,scol,c);
+	return scol;
+}
+
+///////////////////////////////////////////////////////// snow end
+/////////////////////////////////////////////////////////////////////// rain
+float rain(vec2 uv, float rainV)
+{
+    float travelTime = (iTime * 0.3) + 0.5;
+	
+    vec2 tiling = vec2(0.9, .03);
+    vec2 offset = vec2(travelTime * 0.5 + uv.x * 0.2, travelTime * 0.2);
+	
+    vec2 st = uv * tiling + offset;
+    
+  //  float rain = 0.9 ; 
+    float f = noise(st * 200.5) * noise(st * 125.5) ; //*noise(st * 50.5);  
+   	f = clamp(pow(abs(f), 15.0) * 1.5 * (rainV * rainV * 125.0), 0.0, 0.25);
+    return f;
+}
+
+////////////////////////////////////////////////////////////////////// rain end
+
+
+void ExMain (out vec3 fCol, in vec2 fCoord)
+{
+  mat3 vuMat;
+  vec3 ro, rd,col;                    //  col
+  vec2 vd,p ;                          // p
+  float el, az, zmFac, t, vel, f;
+  zRep = 64.;
+  trkF = vec3 (1., 2., 3.) / zRep;
+  trkA = vec3 (1.5, -1.2, 0.8);
+  trkF2 = vec2 (1., 2.) * 16. / zRep;
+  trkA2 = vec2 (-0.1, 0.05);
+#if ISBOOK
+  if (idPage <= 3.) {
+    vuMode = 0;
+  } else {
+    vuMode = 1;
+  }
+  msEl = -99.;
+  t = (mod (idPage - 1., 3.) == 1.) ? 0. : 0.5;
+  isNt = (mod (idPage - 1., 3.) == 2.);
+  isFlsh = (Fbm1 (10. * tCur) > 0.7);
+#else
+  t = 0.;
+  vuMode = 0;
+  isNt = false;
+  isFlsh = false;
+#endif
+  snowFac = SmoothBump (0.4, 0.9, 0.03, mod (tCur / 120. + t, 1.));
+  if (vuMode == 0) {
+    ro = vec3 (0., 1., -15.);
+    az = mod (((msAz >= 0.) ? - msAz : 0.03 * pi * tCur),  2. * pi);
+    el = (msEl >= -0.5 * pi) ? min (- msEl, 0.) : -0.023 * pi * (5. - cos (2. * az));
+    zmFac = 4.;
+  } else {
+    vel = 3.;
+    t = vel * tCur + 0.3 * zRep;
+    ro.xz = TrackPathS (t);
+    vd = TrackPathS (t + zRep / 32.) - ro.xz;
+    t = ro.z / (2. * zRep);
+    f = SmoothBump (0.2, 0.8, 0.1, mod (t, 1.));
+    ro.x += 0.5 * (1. - f) * (2. * mod (floor (t + 0.5), 2.) - 1.);
+    ro.y = 0.6 + 1.4 * (1. + 0.5 * mod (floor (t), 2.)) * f;
+    az = 0.5 * atan (vd.x, vd.y);
+    az += (msAz >= 0.) ? msAz : pi * SmoothBump (0.15, 0.55, 0.15, mod (t, 1.)) * (mod (floor (t), 3.) - 1.);
+    el = (msEl >= 0.) ? msEl : 0.;
+    zmFac = 3.;
+  }
+  dstFar = 150.;
+  sunDir = normalize (vec3 (1., 1.5, 0.3));
+  vuMat = StdVuMat (el, az);
+  if (vuMode == 0) ro = vuMat * ro;
+  rd = vuMat * normalize (vec3 (fCoord, zmFac));
+  fCol = ShowScene (ro, rd);
+  fCol = clamp (fCol, 0., 1.);
+    
+    ///////////////////////////////////////////////////  snow adition 2
+    if( /*snowFac<0.9 &&*/ 0.4<snowFac){
+        fCol =_Snow(fCoord*0.5,fCol); }
+    
+     //col =_Snow(uv*0.5,fCol);
+    ///////////////////////////////////////////////////  snow end
+      ////////////////////////////////////////////////////////////////////////// rain adition
+    if(snowFac<0.4 ){
+    float rain =rain (fCoord,1.5);      // uv => fCoord change
+           fCol +=vec3(0.90,0.8,0.99)*rain ; }
+     /////////////////////////////////////////////////// rain end
+}
+
+#if ISBOOK
+
+float ExObjDf (vec3 p)
+{
+  vec3 q;
+  float dMin, d, rRad, hRad, hOff, np, bc, thFac, nRing, y, s, w;
+  dMin = dstFarEx;
+  rRad = 0.4;
+  hRad = 0.08;
+  nRing = 5.;
+  hOff = 0.15;
+  thFac = 2.2;
+  np = float (nPage - 1);
+  q = p;
+  s = mod (nRing, 2.);
+  w = pgSize.x / nRing;
+  bc = q.x;
+  bc = mod (bc + s * w, 2. * w) - w;
+  for (int k = VAR_ZERO; k < nPage; k ++) {
+    q = p;
+    q.y -= 0.5 * np * thFac * pgSize.y;
+    y = q.y + np * thFac * pgSize.y * phsTurn;
+    if (k == 0) q.zy = Rot2D (vec2 (q.z, y), 2. * pi * phsTurn);
+    else q.y -= thFac * pgSize.y * (phsTurn - float (k));
+    d = hRad - length (vec2 (q.z + rRad, bc));
+    q.z -= - (pgSize.z - hOff + rRad);
+    d = max (PrRoundBoxDf (q, pgSize - pgSize.y, pgSize.y), d);
+    DMINQ (k + 1);
+  }
+  q = p;
+  d = abs (q.x) - pgSize.x;
+  q.x = bc;
+  q = q.zyx;
+  d = max (PrTorusDf (q, 0.5 * hRad, rRad + 0.3 * hRad), d);
+  DMINQ (nPage + 1);
+  return dMin;
+}
+
+float ExObjRay (vec3 ro, vec3 rd)
+{
+  float dHit, d;
+  dHit = 0.;
+  for (int j = VAR_ZERO; j < 120; j ++) {
+    d = ExObjDf (ro + dHit * rd);
+    if (d < 0.0005 || dHit > dstFarEx) break;
+    dHit += d;
+  }
+  return dHit;
+}
+
+vec3 ExObjNf (vec3 p)
+{
+  vec4 v;
+  vec2 e;
+  e = vec2 (0.001, -0.001);
+  v = vec4 (- ExObjDf (p + e.xxx), ExObjDf (p + e.xyy), ExObjDf (p + e.yxy), ExObjDf (p + e.yyx));
+  return normalize (2. * v.yzw - dot (v, vec4 (1.)));
+}
+
+float ExObjSShadow (vec3 ro, vec3 rd)
+{
+  float sh, d, h;
+  sh = 1.;
+  d = 0.02;
+  for (int j = VAR_ZERO; j < 30; j ++) {
+    h = ExObjDf (ro + d * rd);
+    sh = min (sh, smoothstep (0., 0.05 * d, h));
+    d += h;
+    if (sh < 0.05) break;
+  }
+  return 0.7 + 0.3 * sh;
+}
+
+vec3 ExShowScene (vec3 ro, vec3 rd)
+{
+  vec4 col4;
+  vec3 col, vn;
+  vec2 s, w;
+  float dstObj, sh, npCyc, tpCyc, tpWait, nDotL, t;
+  bool isImg;
+  pgSize = vec3 (3.80, 0.011, 1.90);
+  tpCyc = 3.;
+  tpWait = 4.;
+  t = (tpBook < 0.) ? (- tpBook * float (nPage - 1) * (tpCyc + tpWait)) :
+     mod (tpBook - tpWait, float (nPage) * (tpCyc + tpWait));
+  npCyc = mod (floor (t / (tpCyc + tpWait)), float (nPage));
+  phsTurn = min (mod (t / (tpCyc + tpWait), 1.) * (tpCyc + tpWait) / tpCyc, 1.);
+  isImg = false;
+  dstObj = ExObjRay (ro, rd);
+  if (dstObj < dstFarEx) {
+    ro += dstObj * rd;
+    vn = ExObjNf (ro);
+    nDotL = max (dot (vn, ltDirEx), 0.);
+    if (idObj <= nPage) {
+      idPage = mod ((float (idObj - 1) + npCyc), float (nPage)) + 1.;
+      s = pgSize.xz - abs (qHit.xz);
+      col4 = vec4 (0.9, 0.9, 0.8, 0.1);
+      if (qHit.y > 0.) {
+        w = qHit.xz / pgSize.z;
+        if (min (s.x, s.y) > 0.3) {
+          isImg = true;
+          ExMain (col, w);
+        } else if (min (s.x, s.y) > 0.27) {
+          col4 *= 0.3;
+        } else {
+          col4 *= 0.6;
+        }
+      }
+    } else if (idObj == nPage + 1) {
+      col4 = vec4 (0.9, 0.9, 0.95, 0.2);
+      nDotL *= nDotL;
+    }
+    sh = ExObjSShadow (ro + 0.001 * vn, ltDirEx);
+    if (isImg) col *= 0.2 + 0.8 * sh;
+    else col = col4.rgb * (0.2 + 0.8 * sh * nDotL) +
+       col4.a * step (0.95, sh) * pow (max (dot (normalize (ltDirEx - rd), vn), 0.), 32.);
+  } else {
+    col = vec3 (1., 1., 0.9) * (0.5 + 0.2 * rd.y);
+  }
+  return clamp (col, 0., 1.);
+}
+
+#endif
+
+void mainImage (out vec4 fragColor, in vec2 fragCoord)
+{
+  mat3 vuMat;
+  vec4 mPtr;
+  vec3 ro, rd, col;
+  vec2 canvas, uv;
+  float el, az, zmFac, sr;
+  canvas = iResolution.xy;
+  uv = 2. * fragCoord.xy / canvas - 1.;
+  uv.x *= canvas.x / canvas.y;
+  tCur = iTime*0.5;
+//  mPtr = iMouse;
+  mPtr.xy = mPtr.xy / canvas - 0.5;
+  tpBook = tCur;
+  msAz = -99.;
+  msEl = -99.;
+  az = 0.;
+  el = -0.5 * pi;
+  if (mPtr.z > 0.) {
+    msAz = mod (2. * pi * mPtr.x, 2. * pi);
+#if ISBOOK
+    tpBook = - clamp (1.05 * mPtr.y + 0.45, 0., 1.);
+#else
+    msEl = pi * mPtr.y;
+#endif
+}
+#if ISBOOK
+  vuMat = StdVuMat (el, az);
+  ro = vec3 (0., -2., -20.);
+  zmFac = 9.;
+  ro = vuMat * ro;
+  dstFarEx = 40.;
+  ltDirEx = normalize (vec3 (0.3, 1., 0.3));
+#if ! AA
+  const float naa = 1.;
+#else
+  const float naa = 3.;
+#endif  
+  col = vec3 (0.);
+  sr = 2. * mod (dot (mod (floor (0.5 * (uv + 1.) * canvas), 2.), vec2 (1.)), 2.) - 1.;
+  for (float a = float (VAR_ZERO); a < naa; a ++) {
+    rd = vuMat * normalize (vec3 (uv + step (1.5, naa) * Rot2D (vec2 (0.5 / canvas.y, 0.),
+       sr * (0.667 * a + 0.5) * pi), zmFac));
+    col += (1. / naa) * ExShowScene (ro, rd);
+      //////////////////////////////////////////////// snow adition 3
+      
+    //  col =_Snow(uv*0.8,col);
+      
+      /////////////////////////////////////////////////
+  }
+#else
+  if (abs (uv.y) < 0.85) ExMain (col, uv);
+  else col = vec3 (0.05);
+#endif
+  fragColor = vec4 (col, 1.);
+}
+
+float PrBoxDf (vec3 p, vec3 b)
+{
+  vec3 d;
+  d = abs (p) - b;
+  return min (max (d.x, max (d.y, d.z)), 0.) + length (max (d, 0.));
+}
+
+float PrBox2Df (vec2 p, vec2 b)
+{
+  vec2 d;
+  d = abs (p) - b;
+  return min (max (d.x, d.y), 0.) + length (max (d, 0.));
+}
+
+float PrRoundBoxDf (vec3 p, vec3 b, float r)
+{
+  return length (max (abs (p) - b, 0.)) - r;
+}
+
+float PrSphDf (vec3 p, float r)
+{
+  return length (p) - r;
+}
+
+float PrCylDf (vec3 p, float r, float h)
+{
+  return max (length (p.xy) - r, abs (p.z) - h);
+}
+
+float PrFlatCylDf (vec3 p, float rhi, float rlo, float h)
+{
+  float d;
+  d = length (p.xy - vec2 (clamp (p.x, - rhi, rhi), 0.)) - rlo;
+  if (h > 0.) d = max (d, abs (p.z) - h);
+  return d;
+}
+
+float PrTorusDf (vec3 p, float ri, float rc)
+{
+  return length (vec2 (length (p.xy) - rc, p.z)) - ri;
+}
+
+float PrConeDf (vec3 p, vec3 b)
+{
+  return max (dot (vec2 (length (p.xy), p.z), b.xy), abs (p.z) - b.z);
+}
+
+float SmoothMin (float a, float b, float r)
+{
+  float h;
+  h = clamp (0.5 + 0.5 * (b - a) / r, 0., 1.);
+  return mix (b, a, h) - r * h * (1. - h);
+}
+
+float SmoothBump (float lo, float hi, float w, float x)
+{
+  return (1. - smoothstep (hi - w, hi + w, x)) * smoothstep (lo - w, lo + w, x);
+}
+
+float SmootherStep (float a, float b, float x)
+{
+  x = clamp ((x - a) / (b - a), 0., 1.); 
+  return ((6. * x - 15.) * x + 10.) * x * x * x;
+}
+
+mat3 StdVuMat (float el, float az)
+{
+  vec2 ori, ca, sa;
+  ori = vec2 (el, az);
+  ca = cos (ori);
+  sa = sin (ori);
+  return mat3 (ca.y, 0., - sa.y, 0., 1., 0., sa.y, 0., ca.y) *
+         mat3 (1., 0., 0., 0., ca.x, - sa.x, 0., sa.x, ca.x);
+}
+
+vec2 Rot2D (vec2 q, float a)
+{
+  vec2 cs;
+  cs = sin (a + vec2 (0.5 * pi, 0.));
+  return vec2 (dot (q, vec2 (cs.x, - cs.y)), dot (q.yx, cs));
+}
+
+vec2 PixToHex (vec2 p)
+{
+  vec3 c, r, dr;
+  c.xz = vec2 ((1./sqrt3) * p.x - (1./3.) * p.y, (2./3.) * p.y);
+  c.y = - c.x - c.z;
+  r = floor (c + 0.5);
+  dr = abs (r - c);
+  r -= step (dr.yzx, dr) * step (dr.zxy, dr) * dot (r, vec3 (1.));
+  return r.xz;
+}
+
+vec2 HexToPix (vec2 h)
+{
+  return vec2 (sqrt3 * (h.x + 0.5 * h.y), (3./2.) * h.y);
+}
+
+vec3 HsvToRgb (vec3 c)
+{
+  return c.z * mix (vec3 (1.), clamp (abs (fract (c.xxx + vec3 (1., 2./3., 1./3.)) * 6. - 3.) - 1., 0., 1.), c.y);
+}
+
+const float cHashM = 43758.54;
+
+float Hashfv2 (vec2 p)
+{
+  return fract (sin (dot (p, vec2 (37., 39.))) * cHashM);
+}
+
+vec2 Hashv2f (float p)
+{
+  return fract (sin (p + vec2 (0., 1.)) * cHashM);
+}
+
+vec2 Hashv2v2 (vec2 p)
+{
+  vec2 cHashVA2 = vec2 (37., 39.);
+  return fract (sin (vec2 (dot (p, cHashVA2), dot (p + vec2 (1., 0.), cHashVA2))) * cHashM);
+}
+
+vec4 Hashv4v3 (vec3 p)
+{
+  vec3 cHashVA3 = vec3 (37., 39., 41.);
+  vec2 e = vec2 (1., 0.);
+  return fract (sin (vec4 (dot (p + e.yyy, cHashVA3), dot (p + e.xyy, cHashVA3),
+     dot (p + e.yxy, cHashVA3), dot (p + e.xxy, cHashVA3))) * cHashM);
+}
+
+float Noiseff (float p)
+{
+  vec2 t;
+  float ip, fp;
+  ip = floor (p);
+  fp = fract (p);
+  fp = fp * fp * (3. - 2. * fp);
+  t = Hashv2f (ip);
+  return mix (t.x, t.y, fp);
+}
+
+float Noisefv2 (vec2 p)
+{
+  vec2 t, ip, fp;
+  ip = floor (p);  
+  fp = fract (p);
+  fp = fp * fp * (3. - 2. * fp);
+  t = mix (Hashv2v2 (ip), Hashv2v2 (ip + vec2 (0., 1.)), fp.y);
+  return mix (t.x, t.y, fp.x);
+}
+
+float Noisefv3 (vec3 p)
+{
+  vec4 t;
+  vec3 ip, fp;
+  ip = floor (p);
+  fp = fract (p);
+  fp *= fp * (3. - 2. * fp);
+  t = mix (Hashv4v3 (ip), Hashv4v3 (ip + vec3 (0., 0., 1.)), fp.z);
+  return mix (mix (t.x, t.y, fp.x), mix (t.z, t.w, fp.x), fp.y);
+}
+
+float Fbm1 (float p)
+{
+  float f, a;
+  f = 0.;
+  a = 1.;
+  for (int j = 0; j < 5; j ++) {
+    f += a * Noiseff (p);
+    a *= 0.5;
+    p *= 2.;
+  }
+  return f * (1. / 1.9375);
+}
+
+float Fbm2 (vec2 p)
+{
+  float f, a;
+  f = 0.;
+  a = 1.;
+  for (int j = 0; j < 5; j ++) {
+    f += a * Noisefv2 (p);
+    a *= 0.5;
+    p *= 2.;
+  }
+  return f * (1. / 1.9375);
+}
+
+float Fbmn (vec3 p, vec3 n)
+{
+  vec3 s;
+  float a;
+  s = vec3 (0.);
+  a = 1.;
+  for (int j = 0; j < 5; j ++) {
+    s += a * vec3 (Noisefv2 (p.yz), Noisefv2 (p.zx), Noisefv2 (p.xy));
+    a *= 0.5;
+    p *= 2.;
+  }
+  return dot (s, abs (n));
+}
+
+vec3 VaryNf (vec3 p, vec3 n, float f)
+{
+  vec3 g;
+  vec2 e = vec2 (0.1, 0.);
+  g = vec3 (Fbmn (p + e.xyy, n), Fbmn (p + e.yxy, n), Fbmn (p + e.yyx, n)) - Fbmn (p, n);
+  return normalize (n + f * (g - n * dot (n, g)));
+}
+
+/////////////////////////////////////////////////////////   for rain
+float random(in vec2 uv)
+{
+    return fract(sin(dot(uv.xy, 
+                         vec2(12.9898, 78.233))) * 
+                 43758.5453123);
+}
+
+////////////////////////////////////////////////////////////  for rain adition 
+float noise(in vec2 uv)
+{
+    vec2 i = floor(uv);
+    vec2 f = fract(uv);
+    f = f * f * (3. - 2. * f);
+    
+    float lb = random(i + vec2(0., 0.));
+    float rb = random(i + vec2(1., 0.));
+    float lt = random(i + vec2(0., 1.));
+    float rt = random(i + vec2(1., 1.));
+    
+    return mix(mix(lb, rb, f.x), 
+               mix(lt, rt, f.x), f.y);
+}
+
+// -------------------------------------------------------------------------------------------------------------------
+
+</script>
+<script src="three.min.js"></script>
+<script src="main.js"></script>
+
+</body>
+
+<!-- Mirrored from digitonaut.com/art/castle_in_a_book/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 07:49:31 GMT -->
+</html>

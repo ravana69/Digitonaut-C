@@ -1,0 +1,33 @@
+body {
+  color: #FFFFFF;
+  margin: 0;
+  text-align: center;
+  background-color: #000000;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+p {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.header {
+  top: 150px;
+  transform: translatey(-50%);
+}
+
+a, a:hover, a:visited {
+  color: #FFFFFF;
+  text-decoration: none;
+}
+
+h1:after {
+  content: " ThreeJS";
+  font-size: 0.6rem;
+  position: relative;
+  top: -1rem;
+}
